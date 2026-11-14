@@ -1,7 +1,7 @@
 # Robot Telemetry Pipeline + ROS2 Bridge
 
 로봇과 관제 서버를 **양방향으로 실시간 연동**하는 작은 백엔드.
-로봇 센서 데이터를 받아 **검증·정제 → 학습용 데이터셋**으로 만들고, 관제 화면에서 로봇에 **이동 명령**을 보낸다.
+로봇 센서 데이터를 받아 **검증·정제 -> 학습용 데이터셋**으로 만들고, 관제 화면에서 로봇에 **이동 명령**을 보낸다.
 ROS2(Humble) TurtleBot3 시뮬레이션 로봇과 연동하며, 실기체 TurtleBot3는 토픽 구조가 같아 브릿지를 그대로 쓸 수 있도록 설계했다.
 
 ![dashboard](dashboard.png)
@@ -10,8 +10,8 @@ ROS2(Humble) TurtleBot3 시뮬레이션 로봇과 연동하며, 실기체 Turtle
 
 ```
 [TurtleBot3 (Gazebo)] ⇄ ROS2 토픽 ⇄ [브릿지 노드] ⇄ HTTP ⇄ [FastAPI 관제 서버] ⇄ [관제 화면]
-   /odom, /scan  ────────────▶  10Hz 수집, 1초마다 묶어 전송  ──▶  검증·중복 제거·저장
-   /cmd_vel      ◀────────────  안전장치·watchdog 거친 명령   ◀──  POST /commands
+   /odom, /scan  ------------>  10Hz 수집, 1초마다 묶어 전송  -->  검증·중복 제거·저장
+   /cmd_vel      <------------  안전장치·watchdog 거친 명령   <--  POST /commands
 ```
 
 ## 무엇을 하나
@@ -61,7 +61,7 @@ python scripts/bag_to_dataset.py bags/run1 -o dataset_run1.csv
 ## 실행
 
 ### GitHub Codespaces (권장)
-1. 저장소에서 **Code → Codespaces → Create codespace** (4코어 설정 포함)
+1. 저장소에서 **Code -> Codespaces -> Create codespace** (4코어 설정 포함)
 2. 터미널에서:
    ```bash
    docker compose up --build          # 서버 + Gazebo TurtleBot3 (처음 빌드는 5~10분)
