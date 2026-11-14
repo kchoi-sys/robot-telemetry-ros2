@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robot Telemetry 관제</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
+  header { padding: 16px 24px; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  h1 { font-size: 18px; margin: 0; }
+  main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px 24px; }
+  .card { background: #1e293b; border-radius: 10px; padding: 16px; }
+  .card h2 { font-size: 14px; margin: 0 0 12px; color: #94a3b8; font-weight: 500; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td, th { padding: 6px 4px; text-align: left; border-bottom: 1px solid #334155; }
+  .stat { font-size: 28px; font-weight: 600; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; }
+  .muted { color: #94a3b8; font-size: 12px; }
+  a { color: #38bdf8; }
+  .wide { grid-column: 1 / -1; }
+  .on { color: #34d399; } .off { color: #f87171; } .warn { color: #fbbf24; }
+  .pad { display: grid; grid-template-columns: repeat(3, 64px); gap: 6px; margin: 8px 0; }
+  button { background: #334155; color: #e2e8f0; border: 1px solid #475569; border-radius: 8px; padding: 10px 0; font-size: 14px; cursor: pointer; }
+  button.active { background: #0369a1; border-color: #38bdf8; }
+  button.stop { background: #7f1d1d; border-color: #f87171; }
+  select { background: #0f172a; color: #e2e8f0; border: 1px solid #475569; border-radius: 6px; padding: 4px; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Robot Telemetry 관제</h1>
+  <span class="muted">1초마다 갱신 · <a href="/dataset.csv">학습용 데이터셋 내려받기</a> · <a href="/docs">API</a></span>
+</header>
+<main>
+  <section class="card">
+    <h2>로봇 상태</h2>
+    <table><thead><tr><th>ID</th><th>연결</th><th>구분</th><th>속도</th><th>장애물</th><th>배터리</th></tr></thead><tbody id="robots"></tbody></table>
+  </section>
+  <section class="card">
+    <h2>원격 제어</h2>
+    <div>대상 <select id="target"></select> <span class="muted" id="ctlstate">대기</span></div>
+    <div class="pad">
+      <span></span><button data-m="fwd">▲ 전진</button><span></span>
+      <button data-m="left">◀ 좌</button><button class="stop" id="stop">■ 정지</button><button data-m="right">우 ▶</button>
+      <span></span><button data-m="back">▼ 후진</button><span></span>
+    </div>
+    <button id="cut" style="padding:6px 10px">명령 끊기 (watchdog 테스트)</button>
+    <div class="muted" style="margin-top:8px">누른 방향으로 0.2초마다 명령을 계속 보냄. 명령이 0.5초 끊기면 로봇이 스스로 멈추고, 장애물 0.3m 안에서는 전진을 막음.</div>
+  </section>
+  <section class="card">
+    <h2>데이터 품질</h2>
+    <div class="row">
+      <div><div class="stat" id="accepted">0</div><div class="muted">수용</div></div>
+      <div><div class="stat" id="rejected">0</div><div class="muted">거부 (중복·이상치)</div></div>
+      <div><div class="stat" id="latency">-</div><div class="muted">수신 지연 p50 / p95</div></div>
+    </div>
+    <div class="muted" id="reasons" style="margin-top:12px"></div>
+  </section>
+  <section class="card">
+    <h2>이동 경로 (최근 300건)</h2>
+    <canvas id="map" style="width:100%;height:240px"></canvas>
+    <div class="muted" id="legend" style="margin-top:8px"></div>
+  </section>
+</main>
+<script>
+// 외부 라이브러리 없이 canvas로 직접 그림 (인터넷이 막힌 환경에서도 동작)
+const colors = ['#38bdf8', '#a78bfa', '#f59e0b', '#34d399'];
+const fmt = (v, d = 2, u = '') => v === null || v === undefined ? '-' : v.toFixed(d) + u;
+
+function drawMap(tracks, names) {
+  const cv = document.getElementById('map');
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, W, H);
+  const pts = tracks.flat();
+  if (!pts.length) return;
+  let ext = Math.max(1, ...pts.map(p => Math.max(Math.abs(p.x), Math.abs(p.y)))) * 1.1;
+  const S = Math.min(W, H) / (2 * ext), cx = W / 2, cy = H / 2;
+  const P = p => [cx + p.x * S, cy - p.y * S];
+  g.strokeStyle = '#334155'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(0, cy); g.lineTo(W, cy); g.moveTo(cx, 0); g.lineTo(cx, H); g.stroke();
+  g.fillStyle = '#94a3b8'; g.font = '11px system-ui'; g.fillText(`±${ext.toFixed(1)} m`, 4, 12);
+  tracks.forEach((t, k) => {
+    if (!t.length) return;
+    const c = colors[k % colors.length];
+    g.strokeStyle = c; g.lineWidth = 2; g.beginPath();
+    t.forEach((p, i) => { const [a, b] = P(p); i ? g.lineTo(a, b) : g.moveTo(a, b); });
+    g.stroke();
+    const [a, b] = P(t[t.length - 1]);
+    g.fillStyle = t[t.length - 1].safety_stop ? '#f87171' : c;
+    g.beginPath(); g.arc(a, b, 5, 0, 7); g.fill();
+  });
+  document.getElementById('legend').innerHTML = names.map((nm, k) =>
+    `<span style="color:${colors[k % colors.length]}">■</span> ${nm}`).join(' &nbsp; ') +
+    ' &nbsp; <span class="off">●</span> 안전장치 작동 중';
+}
+
+async function refresh() {
+  const robots = await (await fetch('/robots')).json();
+  document.getElementById('robots').innerHTML = robots.map(r =>
+    `<tr><td>${r.robot_id}</td>
+     <td class="${r.online ? 'on' : 'off'}">${r.online ? '● 온라인' : '● 오프라인'}</td>
+     <td>${r.source}</td><td>${fmt(r.speed, 2, ' m/s')}</td>
+     <td class="${r.safety_stop ? 'warn' : ''}">${fmt(r.min_obstacle_m, 2, ' m')}${r.safety_stop ? ' 정지' : ''}</td>
+     <td>${fmt(r.battery, 1, '%')}</td></tr>`).join('');
+
+  const sel = document.getElementById('target');
+  const ids = robots.map(r => r.robot_id);
+  if (sel.options.length !== ids.length) {
+    const cur = sel.value;
+    sel.innerHTML = ids.map(i => `<option>${i}</option>`).join('');
+    if (ids.includes(cur)) sel.value = cur;
+  }
+
+  const q = await (await fetch('/quality')).json();
+  const rej = Object.values(q.rejected).reduce((a, b) => a + b, 0);
+  document.getElementById('accepted').textContent = q.accepted;
+  document.getElementById('rejected').textContent = rej;
+  document.getElementById('latency').textContent = q.latency ? `${Math.round(q.latency.p50_ms)} / ${Math.round(q.latency.p95_ms)} ms` : '-';
+  document.getElementById('reasons').textContent =
+    Object.entries(q.rejected).map(([k, v]) => `${k}: ${v}`).join(' · ') || '거부된 데이터 없음';
+
+  const tracks = await Promise.all(robots.map(r => fetch(`/telemetry/${r.robot_id}?limit=300`).then(x => x.json())));
+  drawMap(tracks, ids);
+}
+
+// ----- 원격 제어: 누른 방향으로 계속 명령을 보냄 (deadman 방식) -----
+const MOVES = { fwd: [0.2, 0], back: [-0.15, 0], left: [0, 1.2], right: [0, -1.2] };
+let timer = null;
+const send = (lin, ang) => fetch('/commands', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ robot_id: document.getElementById('target').value, linear: lin, angular: ang })
+});
+function setActive(m, label) {
+  document.querySelectorAll('[data-m]').forEach(b => b.classList.toggle('active', b.dataset.m === m));
+  document.getElementById('ctlstate').textContent = label;
+}
+function stopSending() { clearInterval(timer); timer = null; }
+document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
+  if (!document.getElementById('target').value) return;
+  stopSending();
+  const [lin, ang] = MOVES[b.dataset.m];
+  send(lin, ang); timer = setInterval(() => send(lin, ang), 200);
+  setActive(b.dataset.m, '명령 전송 중');
+});
+document.getElementById('stop').onclick = () => { stopSending(); send(0, 0); setActive(null, '정지 명령 보냄'); };
+document.getElementById('cut').onclick = () => { stopSending(); setActive(null, '명령 끊김: 0.5초 뒤 로봇이 스스로 정지해야 함'); };
+
+refresh(); setInterval(refresh, 1000);
+</script>
+</body>
+</html>

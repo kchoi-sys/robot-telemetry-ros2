@@ -1,0 +1,21 @@
+# 관제 서버 + ROS2 TurtleBot3 시뮬레이션(브릿지 포함)을 한 번에 실행
+#   docker compose up --build                    -> 서버 + Gazebo 로봇
+#   docker compose --profile mock up --build     -> 서버 + 가벼운 가짜 로봇 (Gazebo 없이)
+services:
+  api:
+    build: .
+    ports: ["8000:8000"]
+    volumes: ["./data:/data"]
+
+  robot:
+    build: { context: ., dockerfile: docker/ros.Dockerfile }
+    environment:
+      SERVER_URL: http://api:8000
+    volumes: ["./bags:/ws/bags"]     # rosbag 녹화 파일이 여기로 저장됨
+    depends_on: [api]
+
+  mock:
+    build: .
+    command: ["python", "bridge/mock_robot.py", "--url", "http://api:8000"]
+    depends_on: [api]
+    profiles: [mock]
