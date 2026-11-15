@@ -1,7 +1,7 @@
 # Robot Telemetry Pipeline + ROS2 Bridge
 
 로봇과 관제 서버를 **양방향으로 실시간 연동**하는 작은 백엔드.
-로봇 센서 데이터를 받아 **검증·정제 → 학습용 데이터셋**으로 만들고, 관제 화면에서 로봇에 **이동 명령**을 보낸다.
+로봇 센서 데이터를 받아 **검증·정제 -> 학습용 데이터셋**으로 만들고, 관제 화면에서 로봇에 **이동 명령**을 보낸다.
 ROS2(Humble) TurtleBot3 시뮬레이션 로봇과 연동하며, 실기체 TurtleBot3는 토픽 구조가 같아 브릿지를 그대로 쓸 수 있도록 설계했다.
 
 ![dashboard](dashboard.png)
@@ -10,16 +10,16 @@ ROS2(Humble) TurtleBot3 시뮬레이션 로봇과 연동하며, 실기체 Turtle
 
 ```
 [TurtleBot3 (Gazebo)] ⇄ ROS2 토픽 ⇄ [브릿지 노드] ⇄ HTTP ⇄ [FastAPI 관제 서버] ⇄ [관제 화면]
-   /odom, /scan  ────────────▶  10Hz 수집, 1초마다 묶어 전송  ──▶  검증·중복 제거·저장
-   /cmd_vel      ◀────────────  안전장치·watchdog 거친 명령   ◀──  POST /commands
+   /odom, /scan  ------------>  10Hz 수집, 1초마다 묶어 전송  -->  검증·중복 제거·저장
+   /cmd_vel      <------------  안전장치·watchdog 거친 명령   <--  POST /commands
 ```
 
 ## 무엇을 하나
 
 | 구분 | 구현 |
 |---|---|
-| 로봇 → 서버 | `/odom`(위치·속도), `/scan`(라이다) 구독 → 서버 형식으로 변환해 전송 |
-| 서버 → 로봇 | 관제 화면 버튼 → `POST /commands` → 브릿지가 `/cmd_vel` 발행 |
+| 로봇 -> 서버 | `/odom`(위치·속도), `/scan`(라이다) 구독 -> 서버 형식으로 변환해 전송 |
+| 서버 -> 로봇 | 관제 화면 버튼 -> `POST /commands` -> 브릿지가 `/cmd_vel` 발행 |
 | 안전장치 | 장애물 0.3m 안에서는 전진 명령 차단 (회전·후진은 허용해 빠져나올 수 있게) |
 | watchdog | 명령이 0.5초 끊기면 로봇 자동 정지. 브릿지 종료 시에도 정지 명령 발행 |
 | 명령 제한 | 로봇 사양(TurtleBot3 Burger 0.22 m/s)을 넘는 명령은 서버에서 거부 |
@@ -29,7 +29,7 @@ ROS2(Humble) TurtleBot3 시뮬레이션 로봇과 연동하며, 실기체 Turtle
 | 관제 화면 | 온라인/오프라인, 장애물 거리, 수신 지연, 이동 경로, 원격 제어 |
 | 학습용 내보내기 | `GET /dataset.csv` 검증 통과 데이터만 (`?source=real` 로 실제 데이터만 선택) |
 
-## 주행 로그 → 학습용 데이터셋 (rosbag)
+## 주행 로그 -> 학습용 데이터셋 (rosbag)
 
 로봇을 조종하면서 녹화한 로그를 **(관측, 행동) 쌍**으로 바꿔 학습용 CSV를 만든다. 사람 조종을 따라 배우는 학습(모방 학습)의 기본 데이터 형식.
 
@@ -51,9 +51,9 @@ python scripts/bag_to_dataset.py bags/run1 -o dataset_run1.csv
 
 ## 검증 결과 (가짜 로봇 `bridge/mock_robot.py`, 같은 브릿지 로직 사용)
 
-- 40초 주행 중 **서버를 7초간 강제 종료** → 기록 388건, 서버 도착 388건, **유실 0건**
-- 벽을 향해 계속 전진 명령 → **0.30m 앞에서 안전장치가 정지**
-- 명령 끊기 → watchdog이 로봇 정지 (1.5초 뒤 속도 0.0)
+- 40초 주행 중 **서버를 7초간 강제 종료** -> 기록 388건, 서버 도착 388건, **유실 0건**
+- 벽을 향해 계속 전진 명령 -> **0.30m 앞에서 안전장치가 정지**
+- 명령 끊기 -> watchdog이 로봇 정지 (1.5초 뒤 속도 0.0)
 - 수신 지연 p50 약 470ms: 1초마다 묶어 보내는 설계 때문 (실시간성이 더 필요하면 전송 주기를 줄이거나 WebSocket으로 변경)
 - rosbag 변환: 센서 끊김·순서 뒤바뀜·명령 끊김을 섞은 테스트 로그로 검증
 - 테스트 15개 통과 (`pytest -q`)
@@ -61,7 +61,7 @@ python scripts/bag_to_dataset.py bags/run1 -o dataset_run1.csv
 ## 실행
 
 ### GitHub Codespaces (권장)
-1. 저장소에서 **Code → Codespaces → Create codespace** (4코어 설정 포함)
+1. 저장소에서 **Code -> Codespaces -> Create codespace** (4코어 설정 포함)
 2. 터미널에서:
    ```bash
    docker compose up --build          # 서버 + Gazebo TurtleBot3 (처음 빌드는 5~10분)
@@ -93,7 +93,7 @@ pytest -q
 | `bridge/ros_bridge.py` | ROS2 노드: 토픽 구독·발행 |
 | `bridge/mock_robot.py` | ROS 없는 가짜 로봇 (같은 core 사용) |
 | `launch/sim_with_bridge.launch.py` | Gazebo(화면 없이) + TurtleBot3 + 브릿지 실행 |
-| `scripts/bag_to_dataset.py` | rosbag 주행 로그 → 학습용 (관측, 행동) 데이터셋 |
+| `scripts/bag_to_dataset.py` | rosbag 주행 로그 -> 학습용 (관측, 행동) 데이터셋 |
 | `simulator.py` | 중복·이상치를 섞어 보내는 데이터 품질 테스트용 |
 
 ## 설계 메모
