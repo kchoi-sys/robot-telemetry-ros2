@@ -33,7 +33,7 @@ def now_utc():
 # ---------- 저장소 ----------
 @contextmanager
 def db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=5)
     conn.row_factory = sqlite3.Row
     try:
         yield conn
@@ -44,6 +44,8 @@ def db():
 
 def init_db():
     with db() as c:
+        # WAL: 데이터를 쓰는 중에도 관제 화면 조회가 기다리지 않게 (읽기/쓰기 동시 진행)
+        c.execute("PRAGMA journal_mode=WAL")
         c.executescript(
             """
             CREATE TABLE IF NOT EXISTS telemetry (
@@ -67,6 +69,10 @@ def init_db():
                 linear REAL NOT NULL,          -- 전진 속도 m/s
                 angular REAL NOT NULL          -- 회전 속도 rad/s
             );
+            -- 데이터가 쌓여도 관제 화면 조회(최근 수신, 로봇별 마지막 수신)가 느려지지 않게
+            CREATE INDEX IF NOT EXISTS idx_tel_received ON telemetry(received_at);
+            CREATE INDEX IF NOT EXISTS idx_tel_robot_received ON telemetry(robot_id, received_at);
+            CREATE INDEX IF NOT EXISTS idx_cmd_robot ON commands(robot_id, id);
             """
         )
 

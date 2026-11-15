@@ -1,0 +1,49 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.2, pytest-9.2.0, pluggy-1.7.0 -- /usr/local/python/3.14.2/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspaces/robot-telemetry-ros2
+plugins: platformdirs-4.14.0, anyio-4.15.1
+collecting ... collected 17 items
+
+tests/test_bag_to_dataset.py::test_conversion_aligns_and_reports PASSED  [  5%]
+tests/test_bridge.py::test_forward_allowed_when_clear PASSED             [ 11%]
+tests/test_bridge.py::test_watchdog_stops_when_commands_stop PASSED      [ 17%]
+tests/test_bridge.py::test_obstacle_blocks_forward_but_allows_turn PASSED [ 23%]
+tests/test_bridge.py::test_no_command_means_stop PASSED                  [ 29%]
+tests/test_bridge.py::test_lidar_ignores_invalid_ranges PASSED           [ 35%]
+tests/test_bridge.py::test_stale_command_not_treated_as_new PASSED       [ 41%]
+tests/test_bridge.py::test_buffer_survives_outage_and_resends_without_loss PASSED [ 47%]
+tests/test_bridge.py::test_resend_after_lost_response_is_deduplicated_by_server PASSED [ 52%]
+tests/test_bridge.py::test_command_roundtrip_and_limits PASSED           [ 58%]
+tests/test_bridge.py::test_robot_without_battery_sensor_and_latency_report PASSED [ 64%]
+tests/test_bridge.py::test_obstacle_behind_does_not_block_forward PASSED [ 70%]
+tests/test_bridge.py::test_slow_upload_does_not_stall_command_polling PASSED [ 76%]
+tests/test_pipeline.py::test_accepts_valid_and_blocks_duplicate PASSED   [ 82%]
+tests/test_pipeline.py::test_rejects_physical_outliers PASSED            [ 88%]
+tests/test_pipeline.py::test_schema_validation PASSED                    [ 94%]
+tests/test_pipeline.py::test_quality_and_export PASSED                   [100%]
+
+=============================== warnings summary ===============================
+../../home/codespace/.local/lib/python3.14/site-packages/starlette/testclient.py:40
+  /home/codespace/.local/lib/python3.14/site-packages/starlette/testclient.py:40: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = typing.Callable[[], typing.ContextManager[anyio.abc.BlockingPortal]]
+
+../../home/codespace/.local/lib/python3.14/site-packages/starlette/_utils.py:39: 16 warnings
+tests/test_bridge.py: 1 warning
+tests/test_pipeline.py: 2 warnings
+  /home/codespace/.local/lib/python3.14/site-packages/starlette/_utils.py:39: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    return asyncio.iscoroutinefunction(obj) or (callable(obj) and asyncio.iscoroutinefunction(obj.__call__))
+
+../../home/codespace/.local/lib/python3.14/site-packages/fastapi/routing.py:233
+../../home/codespace/.local/lib/python3.14/site-packages/fastapi/routing.py:233
+../../home/codespace/.local/lib/python3.14/site-packages/fastapi/routing.py:233
+../../home/codespace/.local/lib/python3.14/site-packages/fastapi/routing.py:233
+../../home/codespace/.local/lib/python3.14/site-packages/fastapi/routing.py:233
+../../home/codespace/.local/lib/python3.14/site-packages/fastapi/routing.py:233
+../../home/codespace/.local/lib/python3.14/site-packages/fastapi/routing.py:233
+../../home/codespace/.local/lib/python3.14/site-packages/fastapi/routing.py:233
+  /home/codespace/.local/lib/python3.14/site-packages/fastapi/routing.py:233: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    is_coroutine = asyncio.iscoroutinefunction(dependant.call)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 17 passed, 28 warnings in 2.54s ========================

@@ -1,0 +1,4 @@
+robot-1  | [python3-4] [INFO] [1794700908.975933853] [telemetry_bridge]: command state: watchdog
+robot-1  | [python3-4] [INFO] [1794700918.376100328] [telemetry_bridge]: command state: ok
+robot-1  | [python3-4] [INFO] [1794700933.576025106] [telemetry_bridge]: command state: obstacle
+robot-1  | [python3-4] [INFO] [1794700935.476351878] [telemetry_bridge]: command state: watchdog

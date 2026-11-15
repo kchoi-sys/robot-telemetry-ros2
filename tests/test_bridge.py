@@ -10,8 +10,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.main import app  # noqa: E402
-from bridge.core import (CommandTracker, Uplink, decide_command, min_obstacle,  # noqa: E402
-                         to_reading)
+import time  # noqa: E402
+
+from bridge.core import (CommandTracker, NetworkWorker, Uplink, decide_command,  # noqa: E402
+                         front_min_obstacle, min_obstacle, to_reading)
 
 client = TestClient(app)
 CMD = {"id": 1, "linear": 0.2, "angular": 0.0}
@@ -93,3 +95,37 @@ def test_robot_without_battery_sensor_and_latency_report():
     robots = {x["robot_id"]: x for x in client.get("/robots").json()}
     assert robots["TB3-N"]["online"] and robots["TB3-N"]["battery"] is None
     assert client.get("/quality").json()["latency"]["n"] >= 1
+
+
+# ----- 실제 주행에서 찾은 문제들 -----
+def test_obstacle_behind_does_not_block_forward():
+    """360도 최솟값을 쓰면 뒤에 붙은 벽 때문에 전진이 막혀 로봇이 갇혔음 -> 정면만 봄."""
+    n = 360                                    # TurtleBot3: 1도 간격, 0번이 정면
+    ranges = [2.0] * n
+    ranges[180] = 0.15                         # 바로 뒤에 벽
+    ranges[90] = 0.15                          # 왼쪽 옆에 기둥
+    front = front_min_obstacle(ranges, 0.0, math.radians(1))
+    assert front == 2.0                        # 앞은 비어 있음
+    assert decide_command(CMD, front, 10.0, 9.9).reason == "ok"
+    ranges[350] = 0.2                          # 정면 오른쪽 10도에 장애물
+    assert front_min_obstacle(ranges, 0.0, math.radians(1)) == 0.2
+
+
+def test_slow_upload_does_not_stall_command_polling():
+    """전송이 느려도 명령 확인은 계속돼야 함 (한 스레드일 때는 전송 중 명령 확인이 멈춤)."""
+    class SlowUplink(Uplink):
+        def __init__(self):
+            super().__init__("http://x", post=lambda path, batch: time.sleep(1.5))
+            self.n = 0
+
+        def latest_command(self, robot_id):
+            self.n += 1
+            return {"id": self.n, "linear": 0.2, "angular": 0.0, "age_s": 0.0}
+
+    up, tracker = SlowUplink(), CommandTracker()
+    up.push({"i": 0})
+    w = NetworkWorker(up, tracker, "R", poll_s=0.05, flush_s=0.1).start()
+    time.sleep(1.0)                            # 이 동안 전송은 1.5초짜리에 묶여 있음
+    assert tracker.last_id >= 10               # 그래도 명령은 0.05초마다 계속 확인됨
+    assert time.monotonic() - tracker.last_new_time < 0.5
+    w.stop()

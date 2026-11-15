@@ -12,7 +12,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from bridge.core import CommandTracker, Uplink, decide_command, to_reading  # noqa: E402
+from bridge.core import CommandTracker, NetworkWorker, Uplink, decide_command, to_reading  # noqa: E402
 
 ROOM = 2.0   # 방 중심에서 벽까지 2m
 
@@ -39,12 +39,11 @@ def main():
     up, tracker = Uplink(a.url, timeout=0.5), CommandTracker()
     x = y = yaw = 0.0
     battery, safety_stop = 100.0, False
-    dt, t0, last_flush, step = 0.05, time.monotonic(), 0.0, 0
+    dt, t0, step = 0.05, time.monotonic(), 0
     reasons = {}
+    worker = NetworkWorker(up, tracker, a.robot_id, on_warn=print).start()   # 명령 확인 / 전송 스레드 분리
     while not a.seconds or time.monotonic() - t0 < a.seconds:
         now = time.monotonic()
-        if step % 2 == 0:                                   # 10Hz 명령 확인
-            tracker.update(up.latest_command(a.robot_id), now)
         min_obs = wall_distance(x, y, yaw)
         cmd = decide_command(tracker.latest, min_obs, now, tracker.last_new_time)
         reasons[cmd.reason] = reasons.get(cmd.reason, 0) + 1
@@ -58,11 +57,9 @@ def main():
         if step % 2 == 0:                                   # 10Hz 기록
             up.push(to_reading(a.robot_id, "sim", x, y, cmd.linear, min_obs, safety_stop,
                                battery=round(battery, 2)))
-        if now - last_flush >= 1.0:                         # 1초마다 전송
-            up.flush()
-            last_flush = now
         step += 1
         time.sleep(dt)
+    worker.stop()
     up.flush()
     print({"recorded": up.pushed, "sent": up.sent, "buffered": len(up.buffer), "send_failures": up.failures,
            "dropped": up.dropped, "control_states": reasons})

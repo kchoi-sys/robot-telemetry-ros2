@@ -31,6 +31,6 @@ def generate_launch_description():
         # 로봇이 생성될 시간을 잠깐 준 뒤 브릿지 시작
         TimerAction(period=5.0, actions=[ExecuteProcess(
             cmd=["python3", "/ws/bridge/ros_bridge.py", "--ros-args",
-                 "-p", "robot_id:=TB3-01", "-p", "source:=sim", "-p", f"server_url:={server_url}"],
+                 "-p", "robot_id:=TB3-01", "-p", "source:=sim", "-p", f"server_url:={server_url}", "-p", "upload_period_s:=0.2"],
             output="screen")]),
     ])

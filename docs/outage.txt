@@ -1,0 +1,11 @@
+robot-1  | [python3-4] [WARN] [1794701401.734539512] [telemetry_bridge]: server unreachable, buffered=11
+robot-1  | [python3-4] [WARN] [1794701402.739274589] [telemetry_bridge]: server unreachable, buffered=21
+robot-1  | [python3-4] [WARN] [1794701403.746544099] [telemetry_bridge]: server unreachable, buffered=31
+robot-1  | [python3-4] [WARN] [1794701404.751662987] [telemetry_bridge]: server unreachable, buffered=41
+robot-1  | [python3-4] [WARN] [1794701405.756035637] [telemetry_bridge]: server unreachable, buffered=51
+robot-1  | [python3-4] [WARN] [1794701406.760628731] [telemetry_bridge]: server unreachable, buffered=61
+robot-1  | [python3-4] [WARN] [1794701407.765683688] [telemetry_bridge]: server unreachable, buffered=71
+robot-1  | [python3-4] [WARN] [1794701408.767996736] [telemetry_bridge]: server unreachable, buffered=81
+
+서버 중단 테스트: 늦게 도착한 데이터 71건, 최대 지연 9.0초
+중단 전후 30초 포함 구간 669건, 측정 시각 최대 간격 0.101초 (0.1초면 빈 구간 없음 = 유실 0)

@@ -1,0 +1,28 @@
+{
+  "messages": {
+    "/cmd_vel": 884,
+    "/odom": 1299,
+    "/scan": 221
+  },
+  "issues": {
+    "/cmd_vel": {
+      "out_of_order": 0,
+      "duplicate_ts": 0
+    },
+    "/odom": {
+      "out_of_order": 0,
+      "duplicate_ts": 0
+    },
+    "/scan": {
+      "out_of_order": 0,
+      "duplicate_ts": 0
+    }
+  },
+  "grid_points": 442,
+  "dropped_odom_gap": 0,
+  "scan_missing": 2,
+  "cmd_stale_as_stop": 0,
+  "rows": 442,
+  "duration_s": 44.16,
+  "output": "docs/dataset_run1.csv"
+}

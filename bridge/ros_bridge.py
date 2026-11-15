@@ -10,7 +10,6 @@
 """
 import os
 import sys
-import threading
 import time
 
 import rclpy
@@ -21,7 +20,8 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from bridge.core import CommandTracker, Uplink, decide_command, min_obstacle, to_reading  # noqa: E402
+from bridge.core import (CommandTracker, NetworkWorker, Uplink, decide_command,  # noqa: E402
+                         front_min_obstacle, to_reading)
 
 
 class TelemetryBridge(Node):
@@ -30,6 +30,7 @@ class TelemetryBridge(Node):
         self.robot_id = self.declare_parameter("robot_id", "TB3-01").value
         self.source = self.declare_parameter("source", "sim").value          # 실기체면 real
         server_url = self.declare_parameter("server_url", "http://localhost:8000").value
+        upload_period = self.declare_parameter("upload_period_s", 1.0).value   # 서버 전송 주기 (초)
 
         self.uplink = Uplink(server_url)
         self.tracker = CommandTracker()
@@ -46,8 +47,11 @@ class TelemetryBridge(Node):
         self.create_timer(0.1, self.sample)     # 10Hz: 센서 값을 서버 형식으로 쌓기
         self.create_timer(0.05, self.control)   # 20Hz: 로봇에 명령 발행 (안전장치 포함)
 
-        # 네트워크는 별도 스레드: 서버가 느리거나 죽어도 로봇 제어 루프는 멈추지 않게
-        threading.Thread(target=self.network_loop, daemon=True).start()
+        # 네트워크는 별도 스레드 두 개 (명령 확인 / 데이터 전송):
+        # 서버가 느리거나 죽어도 로봇 제어 루프와 명령 확인은 멈추지 않게
+        self.worker = NetworkWorker(self.uplink, self.tracker, self.robot_id,
+                                    flush_s=upload_period,
+                                    on_warn=self.get_logger().warn).start()
         self.get_logger().info(f"bridge up: {self.robot_id} -> {server_url}")
 
     # ----- 로봇 -> 서버 -----
@@ -55,7 +59,9 @@ class TelemetryBridge(Node):
         self.odom = msg
 
     def on_scan(self, msg: LaserScan):
-        self.min_obs = min_obstacle(msg.ranges, msg.range_min, msg.range_max)
+        # 전진을 막을지는 정면 ±30도 안의 장애물만 보고 판단
+        self.min_obs = front_min_obstacle(msg.ranges, msg.angle_min, msg.angle_increment,
+                                          msg.range_min, msg.range_max)
 
     def sample(self):
         if self.odom is None:
@@ -63,19 +69,6 @@ class TelemetryBridge(Node):
         p, v = self.odom.pose.pose.position, self.odom.twist.twist.linear
         self.uplink.push(to_reading(self.robot_id, self.source, p.x, p.y, v.x,
                                     self.min_obs, self.safety_stop))
-
-    def network_loop(self):
-        last_flush = 0.0
-        while rclpy.ok():
-            now = time.monotonic()
-            self.tracker.update(self.uplink.latest_command(self.robot_id), now)
-            if now - last_flush >= 1.0:          # 1초마다 묶어서 전송
-                before = len(self.uplink.buffer)
-                sent = self.uplink.flush()
-                if sent == 0 and before:
-                    self.get_logger().warn(f"server unreachable, buffered={len(self.uplink.buffer)}")
-                last_flush = now
-            time.sleep(0.1)
 
     # ----- 서버 -> 로봇 -----
     def control(self):
@@ -98,6 +91,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        node.worker.stop()
         node.cmd_pub.publish(Twist())   # 종료할 때 반드시 정지 명령
         node.destroy_node()
         rclpy.try_shutdown()

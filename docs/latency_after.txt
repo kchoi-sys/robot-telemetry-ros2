@@ -1,0 +1,1 @@
+{"accepted":18645,"rejected":{},"by_source":{"sim":18645},"latency":{"p50_ms":97.9,"p95_ms":190.6,"n":500}}
