@@ -1,0 +1,125 @@
+<!doctype html>
+<!--
+  TurtleBot3 3D 시각화 (포트폴리오/README용 정적 이미지)
+  - 로봇: ROBOTIS 공식 TurtleBot3 Burger 메쉬 (assets/, Apache-2.0), URDF(turtlebot3_burger.urdf)의 부품 위치 그대로
+  - 맵: turtlebot3_gazebo/models/turtlebot3_world/model.sdf 의 기둥·육각 장애물·외벽 좌표와 크기
+  - 라이다: 로봇 라이다 위치에서 1도 간격 360개 광선을 맵 장애물에 쏴서 계산 (최대 3.5m, LDS-01 사양)
+  - 빨간 부채꼴: bridge/core.py 의 FRONT_HALF_WIDTH_DEG=30, STOP_DISTANCE_M=0.30
+  - 로봇 위치: 정면 기둥까지 라이다 거리 0.26m (docs/screenshots/safety_stop.png 의 측정값과 같게)
+  실제 주행 로그를 재생하는 화면이 아니라, 시뮬레이션 환경과 안전장치 규칙을 그대로 옮긴 정적 시각화.
+  렌더: python viz/render.py
+-->
+<html><head><meta charset="utf-8">
+<style>
+html,body{margin:0;background:#070d1a;font-family:'Noto Sans KR','Noto Sans CJK KR',sans-serif}
+#wrap{position:relative;width:2400px;height:1350px;overflow:hidden}
+canvas{display:block}
+.t{position:absolute;color:#e6edf7}
+#title{left:90px;top:70px}
+#title .k{font-size:30px;letter-spacing:6px;color:#5ee7ff;font-weight:700}
+#title .h{font-size:70px;font-weight:900;margin-top:10px;line-height:1.15}
+#title .s{font-size:30px;color:#93a4bd;margin-top:14px}
+.hud{position:absolute;right:80px;top:80px;width:520px;background:rgba(10,20,38,.78);border:1.5px solid rgba(94,231,255,.35);border-radius:22px;padding:30px 36px}
+.hud .row{display:flex;justify-content:space-between;align-items:baseline;padding:14px 0;border-bottom:1px solid rgba(147,164,189,.18)}
+.hud .row:last-child{border:none}
+.hud .l{font-size:25px;color:#93a4bd}
+.hud .v{font-size:38px;font-weight:800;color:#fff}
+.hud .v.g{color:#34d399}.hud .v.c{color:#5ee7ff}
+.hud .cap{font-size:20px;letter-spacing:4px;color:#5ee7ff;font-weight:700;margin-bottom:6px}
+.tag{position:absolute;font-size:26px;font-weight:700;padding:12px 20px;border-radius:12px;white-space:nowrap}
+.tag small{display:block;font-size:20px;font-weight:400;opacity:.85;margin-top:2px}
+.red{background:rgba(239,68,68,.16);border:1.5px solid #ef4444;color:#fecaca}
+.cy{background:rgba(94,231,255,.10);border:1.5px solid #5ee7ff;color:#cffafe}
+.foot{position:absolute;left:90px;bottom:50px;font-size:22px;color:#64748b}
+svg{position:absolute;left:0;top:0}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+<script>
+const Q=new URLSearchParams(location.search);
+const base=Q.has('local')?'./node_modules/three/':'https://cdn.jsdelivr.net/npm/three@0.160.0/';
+document.write('<script type="importmap">'+JSON.stringify({imports:{"three":base+"build/three.module.js","three/addons/":base+"examples/jsm/"}})+'<\/script>');
+</script>
+</head><body><div id="wrap">
+<div id="shade" style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,13,26,.92) 0%,rgba(7,13,26,.6) 28%,rgba(7,13,26,0) 45%),linear-gradient(0deg,rgba(7,13,26,.85) 0%,rgba(7,13,26,0) 14%)"></div><svg id="lines" width="2400" height="1350"></svg>
+<div class="t" id="title"><div class="k">ROS2 · GAZEBO · FASTAPI</div><div class="h">로봇 ↔ 관제 서버<br>실시간 양방향 연동</div><div class="s">TurtleBot3 Burger 시뮬레이션 · 라이다 기반 안전 정지</div></div>
+<div class="hud"><div class="cap">실측 결과</div>
+<div class="row"><span class="l">관제 데이터 수신 지연</span><span class="v c">495 → 98ms</span></div>
+<div class="row"><span class="l">서버 7초 중단 시 유실</span><span class="v g">0건</span></div>
+<div class="row"><span class="l">장애물 앞 전진 차단</span><span class="v">0.24m</span></div>
+<div class="row"><span class="l">명령 끊김 자동 정지</span><span class="v">0.5초</span></div>
+<div class="row"><span class="l">자동 테스트</span><span class="v g">17/17 통과</span></div></div>
+<div class="tag red" id="tagA">정면 ±30° · 0.3m 안전 영역<small>장애물 감지 시 전진 차단, 회전·후진 허용</small></div>
+<div class="tag cy" id="tagB">360° 라이다 /scan<small>best-effort QoS · 10Hz 수집</small></div>
+<div class="tag cy" id="tagC">/cmd_vel ← 관제 서버 명령<small>0.5초 watchdog</small></div>
+<div class="foot">Gazebo turtlebot3_world 환경과 TurtleBot3 Burger 공식 3D 모델로 재구성한 시각화 · 라이다 광선은 실제 장애물 배치로 계산</div>
+</div>
+<script type="module">
+const MODE=new URLSearchParams(location.search).get('mode')||'hero';
+if(MODE==='clean'){document.getElementById('title').style.display='none';document.querySelector('.foot').style.display='none';document.querySelector('.hud').style.display='none';document.getElementById('shade').style.display='none';}
+import * as THREE from 'three';
+import {STLLoader} from 'three/addons/loaders/STLLoader.js';
+const W=2400,H=1350;
+const R=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+R.setSize(W,H);R.setPixelRatio(1);R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFSoftShadowMap;
+R.toneMapping=THREE.ACESFilmicToneMapping;R.outputColorSpace=THREE.SRGBColorSpace;
+document.getElementById('wrap').prepend(R.domElement);
+const S=new THREE.Scene();S.background=new THREE.Color(0x070d1a);S.fog=new THREE.Fog(0x070d1a,2.2,5.5);
+const cam=new THREE.PerspectiveCamera(36,W/H,0.01,50);cam.up.set(0,0,1);
+cam.position.set(-1.20,-0.78,0.62);cam.lookAt(-0.22,0.02,0.06);
+// shift view so robot sits center-left/bottom
+cam.setViewOffset(W,H,-60,-110,W,H);
+S.add(new THREE.HemisphereLight(0x9fb7ff,0x0a0f1c,0.9));
+const sun=new THREE.DirectionalLight(0xffffff,2.2);sun.position.set(-2,-3,5);sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-3,right:3,top:3,bottom:-3});S.add(sun);
+const rim=new THREE.DirectionalLight(0x5ee7ff,0.7);rim.position.set(2,2,1.2);S.add(rim);
+// floor + grid
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(14,14),new THREE.MeshStandardMaterial({color:0x0e1729,roughness:.9}));floor.receiveShadow=true;S.add(floor);
+const grid=new THREE.GridHelper(12,60,0x1f3a5c,0x14243d);grid.rotation.x=Math.PI/2;grid.position.z=0.001;S.add(grid);
+const obstacles=[];
+const pillarMat=new THREE.MeshStandardMaterial({color:0xdfe6ef,roughness:.45,metalness:.05});
+for(const x of [-1.1,0,1.1])for(const y of [-1.1,0,1.1]){
+ const m=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,.5,48),pillarMat);m.rotation.x=Math.PI/2;m.position.set(x,y,.25);m.castShadow=m.receiveShadow=true;S.add(m);obstacles.push(m);}
+const hexMat=new THREE.MeshStandardMaterial({color:0x334155,roughness:.7});
+function hex(x,y,r,z0,h){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,6),hexMat);m.rotation.x=Math.PI/2;m.rotation.y=Math.PI/2;m.position.set(x,y,z0+h/2);m.castShadow=m.receiveShadow=true;S.add(m);obstacles.push(m);}
+const k=0.0254;hex(3.5,0,57.735*k*.8,-.5,100*k*.8);for(const [x,y] of [[1.8,2.7],[1.8,-2.7],[-1.8,2.7],[-1.8,-2.7]])hex(x,y,57.735*k*.55,0,100*k*.55);
+// outer hex wall ring (rotated -90deg yaw)
+{const ro=519.615*k*.25,ri=461.88*k*.25,h=200*k*.25,z0=-.3;const sh=new THREE.Shape(),hole=new THREE.Path();
+ for(let i=0;i<6;i++){const a=i*Math.PI/3;(i?sh.lineTo.bind(sh):sh.moveTo.bind(sh))(ro*Math.cos(a),ro*Math.sin(a));(i?hole.lineTo.bind(hole):hole.moveTo.bind(hole))(ri*Math.cos(a),ri*Math.sin(a));}
+ sh.holes.push(hole);const m=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,{depth:h,bevelEnabled:false}),hexMat);m.position.z=z0;m.castShadow=m.receiveShadow=true;S.add(m);obstacles.push(m);}
+// robot
+const robot=new THREE.Group();const RX=-0.38,RY=0;robot.position.set(RX,RY,0);S.add(robot);
+const L=new STLLoader();const load=u=>new Promise(r=>L.load(u,r));
+const body=new THREE.MeshStandardMaterial({color:0x4a5160,roughness:.4,metalness:.5});
+const tire=new THREE.MeshStandardMaterial({color:0x15181d,roughness:.8});
+const lds=new THREE.MeshStandardMaterial({color:0x3b4250,roughness:.3,metalness:.6});
+function add(g,mat,x,y,z){g.computeVertexNormals();const m=new THREE.Mesh(g,mat);m.scale.setScalar(.001);m.position.set(x,y,z+.010);m.castShadow=true;robot.add(m);}
+const [b,lt,rt,ld]=await Promise.all(['assets/burger_base.stl','assets/left_tire.stl','assets/right_tire.stl','assets/lds.stl'].map(load));
+add(b,body,-.032,0,0);add(lt,tire,0,.08,.023);add(rt,tire,0,-.08,.023);add(ld,lds,-.032,0,.172);
+// lidar
+const O=new THREE.Vector3(RX-.032,RY,.19);const rc=new THREE.Raycaster();rc.far=3.5;
+const pos=[],col=[],hits=[],hitc=[];const front=Math.PI/6;
+for(let d=0;d<360;d+=1){const a=d*Math.PI/180;const dir=new THREE.Vector3(Math.cos(a),Math.sin(a),0);rc.set(O,dir);
+ const h=rc.intersectObjects(obstacles,false)[0];const dist=h?h.distance:3.5;const p=O.clone().addScaledVector(dir,dist);
+ let aa=Math.atan2(Math.sin(a),Math.cos(a));const inF=Math.abs(aa)<=front;const c=inF?new THREE.Color(0xff4d4d):new THREE.Color(0x5ee7ff);
+ if(d%2==0||inF){pos.push(O.x,O.y,O.z,p.x,p.y,p.z);col.push(c.r*.25,c.g*.25,c.b*.25,c.r,c.g,c.b);}
+ if(h){hits.push(p.x,p.y,p.z);hitc.push(c.r,c.g,c.b);}}
+const lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));lg.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+S.add(new THREE.LineSegments(lg,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.4,blending:THREE.AdditiveBlending,depthWrite:false})));
+const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.Float32BufferAttribute(hits,3));pg.setAttribute('color',new THREE.Float32BufferAttribute(hitc,3));
+S.add(new THREE.Points(pg,new THREE.PointsMaterial({size:.028,vertexColors:true,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false})));
+// safety sector
+{const sh=new THREE.Shape();sh.moveTo(0,0);sh.absarc(0,0,.3+.045,-front,front,false);sh.lineTo(0,0);
+ const m=new THREE.Mesh(new THREE.ShapeGeometry(sh,48),new THREE.MeshBasicMaterial({color:0xef4444,transparent:true,opacity:.38,depthWrite:false}));m.position.set(O.x,O.y,.004);S.add(m);
+ const e=new THREE.EdgesGeometry(new THREE.ShapeGeometry(sh,48));const el=new THREE.LineSegments(e,new THREE.LineBasicMaterial({color:0xff6b6b}));el.position.copy(m.position);S.add(el);}
+R.render(S,cam);
+// callout anchors
+function scr(v){const p=v.clone().project(cam);return [(p.x+1)/2*W,(1-p.y)/2*H];}
+const P=MODE==='clean'?{A:[1500,1100],B:[260,300],C:[260,1000]}:{A:[1560,1060],B:[90,560],C:[90,820]};
+const anchors={tagA:[new THREE.Vector3(O.x+.26,-.03,.005),P.A],tagB:[new THREE.Vector3(O.x,.0,.19),P.B],tagC:[new THREE.Vector3(RX-.0,-.085,.03),P.C]};
+const svg=document.getElementById('lines');
+for(const [id,[v,[tx,ty]]] of Object.entries(anchors)){const el=document.getElementById(id);el.style.left=tx+'px';el.style.top=ty+'px';
+ const [ax,ay]=scr(v);const r=el.getBoundingClientRect();const cx=tx<ax?tx+r.width:tx;const cy=ty+r.height/2;
+ const c=id=='tagA'?'#ef4444':'#5ee7ff';
+ svg.innerHTML+=`<line x1="${cx}" y1="${cy}" x2="${ax}" y2="${ay}" stroke="${c}" stroke-width="2.5"/><circle cx="${ax}" cy="${ay}" r="7" fill="${c}"/>`;}
+window.DONE=true;
+</script></body></html>
