@@ -7,7 +7,7 @@ ROS2(Humble) + Gazebo의 TurtleBot3 시뮬레이션 로봇과 연동해 검증�
 
 ![TurtleBot3 3D 시각화: 라이다와 정면 안전 영역](docs/screenshots/3d_hero.png)
 
-![관제 화면: Gazebo TurtleBot3 주행 중](docs/screenshots/path.png)
+![데모: 전진, 장애물 앞 안전 정지, 후진·회전 (2배속)](docs/screenshots/demo.gif)
 
 ## 구조
 
